@@ -1,0 +1,12 @@
+README for gnucash-tools
+
+Introduction
+------------
+
+This is my tools for working with GnuCash. They are primarily intended to 
+generate the kind of reports one expects of a book-keeping program in Sweden.
+
+Requirements
+------------
+
+These tools expects the GnuCash-file to be saved as a SQLite database.
