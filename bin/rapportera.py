@@ -76,8 +76,8 @@ class SetupHuvudbokCommand:
         self.fiscal_end = datetime.date(datetime.date.today().year, 12, 31) 
         self.period_start = datetime.date(datetime.date.today().year, 1, 1)
         self.period_end = datetime.date(datetime.date.today().year, 12, 31) 
-        self.code_start = ''
-        self.code_end = ''
+        self.code_start = None
+        self.code_end = None
         self.last_num = 0 
 
     def execute(self):
@@ -85,7 +85,10 @@ class SetupHuvudbokCommand:
         self.fp.write('title (%s) center newline newline\n' % (self.title))
         self.fp.write('head (%s) left (Sida: ) pgno concat right newline\n' % (self.company))
         self.fp.write(u'head (Räkenskapsår: %s - %s) left (Utskrivet: %s) right newline\n' % (self.fiscal_start.strftime("%y%m%d"), self.fiscal_end.strftime("%y%m%d"), self.date.strftime("%y%m%d")))
-        self.fp.write('head (Konto: %s - %s) left (Senaste vernr: %s) right newline\n' % (self.code_start, self.code_end, self.last_num))
+        if self.code_start == None and self.code_end == None:
+            self.fp.write('head (Konto: Alla) left (Senaste vernr: %s) right newline\n' % (self.code_start))
+        else:
+            self.fp.write('head (Konto: %s - %s) left (Senaste vernr: %s) right newline\n' % (self.code_start, self.code_end, self.last_num))
         self.fp.write('head (Period: %s - %s) left newline newline\n' % (self.period_start.strftime("%y%m%d"), self.period_end.strftime("%y%m%d")))
         self.fp.write('head (Konto) konto (Namn) namn newline\n')
         self.fp.write('head (Vernr) vernr (Datum) datum (Text) text (Debet) debet (Kredit) kredit (Saldo) saldo fat bb thin newline\n')
