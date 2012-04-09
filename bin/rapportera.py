@@ -86,7 +86,7 @@ class SetupHuvudbokCommand:
         self.fp.write('head (%s) left (Sida: ) pgno concat right newline\n' % (self.company))
         self.fp.write(u'head (Räkenskapsår: %s - %s) left (Utskrivet: %s) right newline\n' % (self.fiscal_start.strftime("%y%m%d"), self.fiscal_end.strftime("%y%m%d"), self.date.strftime("%y%m%d")))
         if self.code_start == None and self.code_end == None:
-            self.fp.write('head (Konto: Alla) left (Senaste vernr: %s) right newline\n' % (self.code_start))
+            self.fp.write('head (Konto: Alla) left (Senaste vernr: %s) right newline\n' % (self.last_num))
         else:
             self.fp.write('head (Konto: %s - %s) left (Senaste vernr: %s) right newline\n' % (self.code_start, self.code_end, self.last_num))
         self.fp.write('head (Period: %s - %s) left newline newline\n' % (self.period_start.strftime("%y%m%d"), self.period_end.strftime("%y%m%d")))
