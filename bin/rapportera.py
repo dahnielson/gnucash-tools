@@ -130,7 +130,7 @@ class HuvudbokAccountCommand:
         if len(self.splits) == 0 and self.account_type in ['INCOME', 'EXPENSE']:
             return
         self.fp.write(u"body (%s) konto (%s) namn n\n" % (self.code, self.name))
-        if self.account_type in ['ASSET', 'CASH', 'RECEIVABLE', 'LIABILITY', 'EQUITY', 'PAYABLE']:
+        if self.account_type in ['ASSET', 'BANK', 'CASH', 'RECEIVABLE', 'LIABILITY', 'EQUITY', 'PAYABLE']:
             self.fp.write(u"body (Ingående balans:) transinfo (%s) saldo n\n" % (c(self.balance_in, True)))
         self.fp.write(u"body (Ingående saldo:) transinfo (%s) saldo n n\n" % (c(self.saldo_in, True)))
         for s in self.splits:
