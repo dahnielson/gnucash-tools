@@ -65,6 +65,111 @@ class SetupReportCommand:
         self.fp.write('/center { dup stringwidth pop 2 div linewidth 2 div exch sub lm add tm moveto show } def\n')
         self.fp.write('/right { dup stringwidth pop rm exch sub tm moveto show } def\n')
 
+class SetupVerifikationCommand:
+
+    def __init__(self, fp):
+        self.fp = fp
+        self.title = u"Bokföringsorder"
+        self.company = ''
+        self.date = datetime.date.today()
+        self.fiscal_start = datetime.date(datetime.date.today().year, 1, 1)
+        self.fiscal_end = datetime.date(datetime.date.today().year, 12, 31)
+        self.num = 0
+
+    def execute(self):
+        self.fp.write('/header {\n')
+        self.fp.write('title (%s) center newline newline\n' % (self.title))
+        self.fp.write('head (%s) left (Vernr: %s) right newline\n' % (self.company, self.num))
+        self.fp.write(u'head (Räkenskapsår: %s - %s) left (Datum: %s) right newline newline\n' % (self.fiscal_start.strftime("%y%m%d"), self.fiscal_end.strftime("%y%m%d"), self.date.strftime("%y%m%d")))
+        self.fp.write('head (Text) text newline\n')
+        self.fp.write(u'head (Konto) konto (Benämning) namn (Debet) debet (Kredit) kredit fat bb thin newline\n')
+        self.fp.write('} def\n')
+
+        self.fp.write('/konto { lm 0 add tm moveto show } def\n')
+        self.fp.write('/text { lm 48 add tm moveto show } def\n')
+        self.fp.write('/namn { lm 48 add tm moveto show } def\n')
+        self.fp.write('/debet { dup stringwidth pop rm 96 sub exch sub tm moveto show } def\n')
+        self.fp.write('/kredit { dup stringwidth pop rm 0 sub exch sub tm moveto show } def\n')
+        self.fp.write('/total { dup stringwidth pop rm 192 sub exch sub tm moveto show } def\n')
+
+        self.fp.write('page\n')
+
+class VerifikationTransactionCommand:
+
+    def __init__(self, fp, text):
+        self.fp = fp
+        self.text = text
+        self.splits = []
+
+    def add_split(self, code, name, debit, credit):
+        self.splits.append((code, name, c(debit), c(credit)))
+
+    def execute(self):
+        self.fp.write(u"body (%s) text n\n" % (self.text))
+        for s in self.splits:
+            self.fp.write(u"body (%s) konto (%s) namn (%s) debet (%s) kredit n\n" % s)
+        self.fp.write('tb\n')
+
+class CloseVerifikationCommand:
+
+    def __init__(self, fp):
+        self.fp = fp
+        self.debit_total = 0
+        self.credit_total = 0
+
+    def execute(self):
+        self.fp.write('foot (Omslutning:) total (%s) debet (%s) kredit fat tb bb n\n' % (c(self.debit_total), c(self.credit_total)))
+        self.fp.write('close\n')
+
+class Verifikation:
+
+    def __init__(self, connection, fp, args):
+        self.__conn = connection
+        self.fp = fp
+        self.fiscal_start = datetime.datetime(args.fiscal_year, 1, 1, 0, 0, 0, tzinfo=tz.tzlocal())
+        self.fiscal_end = datetime.datetime(args.fiscal_year, 12, 31, 23, 59, 59, tzinfo=tz.tzlocal())
+        self.num = args.num
+
+    def execute_command(self, command):
+        command.execute()
+
+    def report(self):
+        macro = MacroCommand()
+        report = SetupReportCommand(self.fp)
+        macro.add_command(report)
+        preamble = SetupVerifikationCommand(self.fp)
+        preamble.company = self.__conn.execute(
+            "SELECT string_val FROM slots WHERE name = ?",
+            ('options/Business/Company Name',)
+        ).fetchone()[0]
+        preamble.fiscal_start = self.fiscal_start
+        preamble.fiscal_end = self.fiscal_end
+        preamble.num = self.num
+        result = self.__conn.execute(
+            "SELECT guid, num, post_date, description FROM transactions WHERE post_date >= ? AND post_date <= ? AND CAST(num AS INTEGER) = ? ORDER BY CAST(num AS INTEGER) ASC", 
+            (self.fiscal_start.astimezone(tz.tzutc()).strftime("%Y%m%d%H%M%S"), self.fiscal_end.astimezone(tz.tzutc()).strftime("%Y%m%d%H%M%S"), self.num)
+        )
+        macro.add_command(preamble)
+        close = CloseVerifikationCommand(self.fp)
+        for t in result:
+            text = t[3]
+            preamble.date = datetime.datetime(int(t[2][:4]), int(t[2][4:6]), int(t[2][6:8]), int(t[2][8:10]), int(t[2][10:12]), int(t[2][12:]), tzinfo=tz.tzutc()).astimezone(tz.tzlocal())
+            transaction = VerifikationTransactionCommand(self.fp, text)
+            for code, name, value in self.__conn.execute("SELECT code, name, CAST(value_num AS REAL) / CAST(value_denom AS REAL) FROM splits, accounts WHERE splits.account_guid = accounts.guid AND tx_guid = ?", (t[0],)):
+                name = name.replace(code, '').strip()
+                debit = 0
+                credit = 0
+                if value > 0:
+                    debit = abs(value)
+                    close.debit_total += debit
+                elif value < 0:
+                    credit = abs(value)
+                    close.credit_total += credit
+                transaction.add_split(code, name, debit, credit)
+            macro.add_command(transaction)
+        macro.add_command(close)
+        self.execute_command(macro)
+
 class SetupHuvudbokCommand:
 
     def __init__(self, fp):
@@ -395,6 +500,11 @@ def main():
     huvudbok_parser.add_argument('--period-start', dest='period_start', metavar='yymmdd', help=u"rapportens period börjar")
     huvudbok_parser.add_argument('--period-end', dest='period_end', metavar='yymmdd', help=u"rapportens period slutar")
     huvudbok_parser.set_defaults(func=output_report, factory=Huvudbok)
+
+    verifikation_parser = subparsers.add_parser('verifikation', help=u"skriv ut bokföringsorder")
+    verifikation_parser.add_argument('--fiscal-year', dest='fiscal_year', metavar='yyyy', default=datetime.date.today().year, type=int, help=u"bokföringsorderns räkenskapsår")
+    verifikation_parser.add_argument('--num', dest='num', metavar='num', type=int, help=u"bokföringsorderns vernr")
+    verifikation_parser.set_defaults(func=output_report, factory=Verifikation)
 
     args = parser.parse_args()
     args.func(args)
