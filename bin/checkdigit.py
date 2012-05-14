@@ -51,7 +51,7 @@ def generate(args):
 def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
-    parser.add_argument('number')
+    parser.add_argument('number', type=int)
 
     validate_parser = subparsers.add_parser('validate', help=u"validera checksumma")
     validate_parser.add_argument('-l', action='store_true', dest='length_digit', help=u"med längdsiffra")
