@@ -2,6 +2,7 @@
 # coding=utf8
 
 import argparse
+import sys
 
 def digits_of(n):
     return [int(d) for d in str(n)]
@@ -33,10 +34,13 @@ def calculate_length(partial_number):
 def validate(args):
     if args.length_digit and is_length_valid(args.number) and is_luhn_valid(args.number):
         print u"Godkänd"
+        sys.exit(0)
     elif args.length_digit != True and is_luhn_valid(args.number):
         print u"Godkänd"
+        sys.exit(0)
     else:
         print u"Ej godkänd"
+        sys.exit(1)
 
 def generate(args):
     number = args.number
